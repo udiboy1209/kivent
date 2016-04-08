@@ -109,7 +109,7 @@ cdef class GameView(GameSystem):
         Used internally by gameview to update the projection matrix to properly
         reflect the settings for camera_size, camera_pos, and the pos and size
         of gameview.'''
-        camera_pos = self.camera_pos
+        camera_pos = self._rotate_point(self.camera_pos, self.camera_rotate)
         camera_size = self.size
         x, y = self.pos
         camera_scale = self.camera_scale
