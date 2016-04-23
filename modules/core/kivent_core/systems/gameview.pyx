@@ -1,7 +1,7 @@
 # cython: embedsignature=True
 from gamesystem cimport GameSystem
 from kivy.properties import (StringProperty, ListProperty,
-    NumericProperty, BooleanProperty, ObjectProperty)
+    NumericProperty, BooleanProperty, ObjectProperty, AliasProperty)
 from kivy.clock import Clock
 from kivy.vector import Vector
 from kivent_core.managers.system_manager cimport SystemManager
@@ -76,6 +76,7 @@ cdef class GameView(GameSystem):
     do_scroll_lock = BooleanProperty(True)
     camera_pos = ListProperty((0, 0))
     camera_scale = NumericProperty(1.0)
+    camera_rotate = AliasProperty(_get_rotate, _set_rotate, bind=['camera_scale','camera_pos','size'])
     focus_entity = BooleanProperty(False)
     do_touch_zoom = BooleanProperty(False)
     do_scroll = BooleanProperty(True)
@@ -93,24 +94,23 @@ cdef class GameView(GameSystem):
 
     _camera_rotate = NumericProperty(0)
 
-    property camera_rotate:
-        def __get__(self):
-            return self._camera_rotate
+    def _get_rotate(self):
+        return self._camera_rotate
 
-        def __set__(self, float value):
-            # Adjust camera_pos so that rotation is about screen center
-            camera_pos = self.camera_pos
-            prev_value = self._camera_rotate
-            camera_size = self.size
-            camera_scale = self.camera_scale
+    def _set_rotate(self, value):
+        # Adjust camera_pos so that rotation is about screen center
+        camera_pos = self.camera_pos
+        prev_value = self._camera_rotate
+        camera_size = self.size
+        camera_scale = self.camera_scale
 
-            screen_center = (camera_size[0] * camera_scale * 0.5,
-                             camera_size[1] * camera_scale * 0.5)
-            screen_center_rotated = self._rotate_point(screen_center, value - prev_value)
+        screen_center = (camera_size[0] * camera_scale * 0.5,
+                         camera_size[1] * camera_scale * 0.5)
+        screen_center_rotated = self._rotate_point(screen_center, value - prev_value)
 
-            self.camera_pos = (camera_pos[0] + screen_center_rotated[0] - screen_center[0],
-                               camera_pos[1] + screen_center_rotated[1] - screen_center[1])
-            self._camera_rotate = value
+        self.camera_pos = (camera_pos[0] + screen_center_rotated[0] - screen_center[0],
+                           camera_pos[1] + screen_center_rotated[1] - screen_center[1])
+        self._camera_rotate = value
 
     def __init__(self, **kwargs):
         super(GameView, self).__init__(**kwargs)
