@@ -31,6 +31,11 @@ cdef class GameView(GameSystem):
         twice as much of your gameworld, appearing 'zoomed out', while .5 will
         show half as much of the gameworld, appearing 'zoomed in'.
 
+        **camera_rotate** (NumericProperty): Current angle in radians by which the
+        camera is rotated anti-clockwise with respect to the world x-axis.
+        Every time this value is updated, the rotation takes place about the
+        center of the screen.
+
         **focus_entity** (BooleanProperty): If True the camera will follow the
         entity set in entity_to_focus
 
