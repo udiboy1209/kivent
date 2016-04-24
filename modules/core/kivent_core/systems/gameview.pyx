@@ -25,6 +25,14 @@ cdef class GameView(GameSystem):
 
         **camera_pos** (ListProperty): Current position of the camera
 
+        **camera_size** (ListProperty): Current width and height of the
+        camera. Differs from 'size' as 'size' represents size of the
+        GameView widget where as 'camera_size' represents the how much of the
+        world is being seen in the GameView i.e. 'camera_size' = 'size' * 'camera_scale'.
+        You should NOT directly set 'camera_size'. It is set automatically when
+        'size' and 'camera_scale' are updated. It is solely for reading the
+        current size of the camera.
+
         **camera_scale** (NumericProperty): Current scale of the camera. The
         scale is equal to the amount of the game world that will be shown
         compared to the physical size of the GameView, therefore 2x will show
@@ -76,6 +84,7 @@ cdef class GameView(GameSystem):
     do_scroll_lock = BooleanProperty(True)
     camera_pos = ListProperty((0, 0))
     camera_scale = NumericProperty(1.0)
+    camera_size = AliasProperty(_get_size, _set_size, bind=['size','camera_scale'])
     camera_rotate = AliasProperty(_get_rotate, _set_rotate, bind=['camera_scale','camera_pos','size'])
     focus_entity = BooleanProperty(False)
     do_touch_zoom = BooleanProperty(False)
@@ -92,6 +101,27 @@ cdef class GameView(GameSystem):
     window_size = ListProperty((100., 100.))
     touch_pass_through = BooleanProperty(False)
 
+
+    _camera_size = ListProperty((100,100))
+
+    def _get_size(self):
+        return self._camera_size
+
+    def _set_size(self, value):
+        # Adjust camera_pos to resize about the screen center
+        prev_size = self._camera_size
+
+        camera_shift = ((value[0] - prev_size[0])/2,
+                        (value[1] - prev_size[1])/2)
+        camera_shift = self._rotate_point(camera_shift, self.camera_rotate)
+
+        self.camera_pos[0] += camera_shift[0]
+        self.camera_pos[1] += camera_shift[1]
+
+        self._camera_size = value
+
+        return True
+
     _camera_rotate = NumericProperty(0)
 
     def _get_rotate(self):
@@ -101,16 +131,17 @@ cdef class GameView(GameSystem):
         # Adjust camera_pos so that rotation is about screen center
         camera_pos = self.camera_pos
         prev_value = self._camera_rotate
-        camera_size = self.size
-        camera_scale = self.camera_scale
+        camera_size = self._camera_size
 
-        screen_center = (camera_size[0] * camera_scale * 0.5,
-                         camera_size[1] * camera_scale * 0.5)
+        screen_center = (camera_size[0] * 0.5,
+                         camera_size[1] * 0.5)
         screen_center_rotated = self._rotate_point(screen_center, value - prev_value)
 
         self.camera_pos = (camera_pos[0] + screen_center_rotated[0] - screen_center[0],
                            camera_pos[1] + screen_center_rotated[1] - screen_center[1])
         self._camera_rotate = value
+
+        return True
 
     def __init__(self, **kwargs):
         super(GameView, self).__init__(**kwargs)
@@ -118,6 +149,9 @@ cdef class GameView(GameSystem):
         self._touch_count = 0
         self._touches = []
         self.canvas = RenderContext()
+
+        self.bind(size=self.setter('camera_size'))
+        self.bind(camera_scale=self.setter('camera_size'))
 
     def _rotate_point(self, point, angle):
         cos_r, sin_r = cos(angle), sin(angle)
@@ -135,17 +169,16 @@ cdef class GameView(GameSystem):
         reflect the settings for camera_size, camera_pos, and the pos and size
         of gameview.'''
         camera_pos = self._rotate_point(self.camera_pos, -self._camera_rotate)
-        camera_size = self.size
+        camera_size = self._camera_size
         x, y = self.pos
-        camera_scale = self.camera_scale
         proj = Matrix()
         proj.translate(camera_pos[0], camera_pos[1], 0)
         proj.rotate(self._camera_rotate, 0, 0, 1)
         proj = Matrix().view_clip(
                 0,
-                camera_size[0]*camera_scale,
+                camera_size[0],
                 0,
-                camera_size[1]*camera_scale,
+                camera_size[1],
                 0., 100, 0).multiply(proj)
 
         self.canvas['projection_mat'] = proj
@@ -194,9 +227,7 @@ cdef class GameView(GameSystem):
             position_data = entity.position
             camera_pos = self.camera_pos
             camera_speed_multiplier = self.camera_speed_multiplier
-            camera_size = self.size
-            camera_scale = self.camera_scale
-            size = camera_size[0] * camera_scale, camera_size[1] * camera_scale
+            size = self._camera_size
 
             screen_center = (size[0]*0.5, size[1]*0.5)
             screen_center = self._rotate_point(screen_center, self._camera_rotate)
@@ -263,9 +294,8 @@ cdef class GameView(GameSystem):
     def get_camera_center(self):
         '''Returns the current center point of the cameras view'''
         cx, cy = self.camera_pos
-        size = self.size
-        camera_scale = self.camera_scale
-        sw, sh = size[0] * camera_scale *.5, size[1] * camera_scale * .5
+        size = self._camera_size
+        sw, sh = size[0] *.5, size[1] * .5
         return sw - cx, sh - cy
 
     def convert_from_screen_to_world(self, pos):
@@ -288,11 +318,10 @@ cdef class GameView(GameSystem):
 
     def look_at(self, pos):
         '''Set the camera to be focused at pos.'''
-        camera_size = self.size
-        camera_scale = self.camera_scale
+        camera_size = self._camera_size
         camera_pos = self.camera_pos
-        self.camera_pos[0] = -pos[0] + camera_size[0]*.5*camera_scale
-        self.camera_pos[1] = -pos[1] + camera_size[1]*.5*camera_scale
+        self.camera_pos[0] = -pos[0] + camera_size[0]*.5
+        self.camera_pos[1] = -pos[1] + camera_size[1]*.5
 
 
     def on_touch_move(self, touch):
